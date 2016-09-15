@@ -1,0 +1,64 @@
+ Reading Outlook Email With Python
+There are several ways to read Outlook Email with Python, and I scouted around a number of blogs and websites to piece together a method that worked for me. This may not work for you, depending on how your company sets up its Outlook, but here it is, as a Python class
+
+here is some usage ...
+
+  outlook = OutlookLib()
+  messages = outlook.get_messages('you@yourcompany.com')
+  for msg in messages:
+      print msg.Subject
+      print msg.Body
+
+and here is the class ...
+
+
+import win32com.client
+
+class OutlookLib:
+        
+    def __init__(self, settings={}):
+        self.settings = settings
+        
+    def get_messages(self, user, folder="Inbox", match_field="all", match="all"):      
+        outlook = win32com.client.Dispatch("Outlook.Application")
+        myfolder = outlook.GetNamespace("MAPI").Folders[user] 
+        inbox = myfolder.Folders[folder] # Inbox
+        if match_field == "all" and match =="all":
+            return inbox.Items
+        else:
+            messages = []
+            for msg in inbox.Items:
+                try:
+                    if match_field == "Sender":
+                        if msg.SenderName.find(match) >= 0:
+                            messages.append(msg)
+                    elif match_field == "Subject":
+                        if msg.Subject.find(match) >= 0:
+                            messages.append(msg)
+                    elif match_field == "Body":
+                        if msg.Body.find(match) >= 0:
+                            messages.append(msg)
+                    #print msg.To
+                    #msg.Attachments
+                        # a = item.Attachments.Item(i)
+                        # a.FileName
+                except:
+                    pass
+            return messages
+        
+    def get_body(self, msg):
+        return msg.Body
+    
+    def get_subject(self, msg):
+        return msg.Subject
+    
+    def get_sender(self, msg):
+        return msg.SenderName
+    
+    def get_recipient(self, msg):
+        return msg.To
+    
+    def get_attachments(self, msg):
+        return msg.Attachments
+
+
