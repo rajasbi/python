@@ -1,0 +1,155 @@
+#! /usr/bin/env /usr/bin/python
+
+import os
+import sys
+import argparse
+import glob
+import csv
+
+
+def getlist(path, typ):
+    return glob.glob(os.path.join(path, typ))
+
+def compare_csv_content(bpath, apath):
+    print "\n" + "COMPARING:::", bpath, apath
+    bDict = {}
+    bfile = open(bpath, 'r')
+    breader = csv.DictReader(bfile, ['id', 'Name'])
+    next(breader) #To skip the header line
+    for key in breader:
+        bDict[key['Name']] = key
+    bfile.close()
+    
+    aDict = {}
+    afile = open(apath, 'r')
+    areader = csv.DictReader(afile, ['id', 'Name'])
+    next(areader) #To skip the header line
+    for key in areader:
+        aDict[key['Name']] = key
+    afile.close()
+
+    for key in bDict:
+        try:
+            aDict[key]
+            aDict[key] = bDict[key] = None
+        except KeyError:
+            pass
+
+    bDict = {key:bDict[key] for key in bDict if bDict[key] is not None}
+    aDict = {key:aDict[key] for key in aDict if aDict[key] is not None}
+
+    
+    lb = len(bDict)
+    la = len(aDict)
+
+    if la == 0 and lb == 0:
+        print apath, " and ", bpath, "are SAME"
+    else:
+        print apath, " and ", bpath, "are NOT SAME"
+        
+    if lb:
+        print "\nMissed data in New deployment from :", bpath
+        for key in bDict:
+            print bDict[key]['id'] + ',' + bDict[key]['Name'] + ',' + ','.join(bDict[key][None])
+
+    if la:
+        print "\nAdded data in New deployment to :", apath
+        for key in aDict:
+            print aDict[key]['id'] + ',' + aDict[key]['Name'] + ',' + ','.join(aDict[key][None])
+
+            
+def compare_csv_files(bdir, adir):
+    bcsvpaths = getlist(bdir, "*.csv")
+    bcsvpaths.sort()
+    acsvpaths = getlist(adir, "*.csv")
+    acsvpaths.sort()
+
+    #print "COMAPRE_CSV_FILES", bcsvpaths, acsvpaths
+    #print "COMAPRE_CSV_FILES", bdir, adir
+    
+    bcsvfiles = [os.path.basename(fil) for fil in bcsvpaths]
+    acsvfiles = [os.path.basename(fil) for fil in acsvpaths]
+
+    bcset = set(bcsvfiles)
+    acset = set(acsvfiles)
+
+    bcf = bcset.difference(acset)
+    acf = acset.difference(bcset)
+    common = acset.intersection(bcset)
+
+    if len(bcf):
+        print "\n" + "Files existed before deployment only..."
+        for dirs in bcf:
+            print "File :", bcsvpaths[bcsvfiles.index(dirs)]
+
+    if len(acf):
+        print "\n" + "Files existed after deployment only"
+        for dirs in acf:
+            print "File :", acsvpaths[acsvfiles.index(dirs)]
+
+    if len(common):
+        for com in common:
+            bindex = bcsvfiles.index(com)
+            aindex = acsvfiles.index(com)
+            compare_csv_content(bcsvpaths[bindex], acsvpaths[aindex])                  
+
+
+def deploycompare(before, after):
+    before_dir = [os.path.basename(path) for path in before]
+    after_dir = [os.path.basename(path) for path in after]
+    
+    bdset = set(before_dir)
+    adset = set(after_dir)
+
+    bdf = bdset.difference(adset)
+    adf = adset.difference(bdset)
+    common = adset.intersection(bdset)
+
+    if len(bdf):
+        print "\n" + "Directories existing before deployment only..."
+        for dirs in bdf:
+            print "Directory :", before[before_dir.index(dirs)]
+            
+    if len(adf):
+        print "\n" + "Directories existing after deployment only..."
+        for dirs in adf:
+            print "Directory :", after[after_dir.index(dirs)]
+
+    if len(common):
+        for com in common:
+            bindex = before_dir.index(com)
+            aindex = after_dir.index(com)
+            compare_csv_files(before[bindex], after[aindex])      
+            
+            
+def validatepaths(res):
+    for path in ['before', 'after']:
+        if not os.path.isdir(res[path][0]):
+            print res[path][0], "is INVALID, Provide proper path"
+            sys.exit(1)
+
+
+def parser():
+    parse = argparse.ArgumentParser(description = "Deploy file comparator")
+    parse.add_argument('-b', '--before', nargs=1, required=True,
+                       help="Provide before deployment path name")
+    parse.add_argument('-a', '--after', nargs=1, required=True,
+                       help="Provide after deployment path")
+    args = parse.parse_args()
+    args = vars(args)
+    return args
+
+            
+if __name__ == '__main__':
+    parser_result = parser()
+
+    validatepaths(parser_result)
+
+    before_deploy = getlist(parser_result['before'][0], "WF_*")
+    before_deploy.sort()
+    after_deploy = getlist(parser_result['after'][0], "WF_*")
+    after_deploy.sort()
+#    print "***", after_deploy
+#    print "***", before_deploy
+    deploycompare(before_deploy, after_deploy)
+
